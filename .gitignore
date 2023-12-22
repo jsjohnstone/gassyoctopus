@@ -130,3 +130,4 @@ dist
 .pnp.*
 
 .env
+lambda_function.zip
