@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ""
+Resources:
+    SecretsManagerSecret:
+        Type: "AWS::SecretsManager::Secret"
+        DeletionPolicy: Delete
+        Properties:
+            Name: !Join ['-', ['home/gassyoctopus-secret', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            Description: "Credentials for automatic sync of meter reads from Octopus to Tado"
+            SecretString: '{"geohomeUsername":"geohomeusernamegoeshere","geohomePassword":"geohomepasswordgoeshere","geohomeSystemId":"geohomesystemidgoeshere","tadoUsername":"tadousernamegoeshere","tadoPassword":"tadopasswordgoeshere","tadoHomeId":"tadohomeidgoeshere"}'
+
+    LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        DeletionPolicy: Delete
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    GASSYOCTOPUS_SECRET_NAME: !Join ['-', ['home/gassyoctopus-secret', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            FunctionName: !Join ['-', ['gassyoctopus-lambda', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            Handler: "function/index.handler"
+            Architectures: 
+              - "x86_64"
+            Code:
+              ZipFile: 
+                Replace with zip file
+            MemorySize: 128
+            Role: !GetAtt LambdaIAMRole.Arn
+            Runtime: "nodejs20.x"
+            Timeout: 150
+            TracingConfig: 
+                Mode: "PassThrough"
+            Layers: 
+              - !Sub "arn:aws:lambda:${AWS::Region}:015030872274:layer:AWS-Parameters-and-Secrets-Lambda-Extension:11"
+            EphemeralStorage: 
+                Size: 512
+
+    SchedulerSchedule:
+        Type: "AWS::Scheduler::Schedule"
+        DeletionPolicy: Delete
+        Properties:
+            Name: !Join ['-', ['gassyoctopus-cronjob', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            Description: "Triggers the GassyOctopus Lambda to run at 11:30pm every day"
+            State: "ENABLED"
+            GroupName: "default"
+            ScheduleExpression: "cron(30 23 * * ? *)"
+            ScheduleExpressionTimezone: "Europe/London"
+            FlexibleTimeWindow: 
+                Mode: "OFF"
+            Target: 
+                Arn: !GetAtt LambdaFunction.Arn
+                RetryPolicy: 
+                    MaximumEventAgeInSeconds: 86400
+                    MaximumRetryAttempts: 0
+                RoleArn: !GetAtt EventBridgeIAMRole.Arn
+
+    EventBridgeIAMRole:
+      Type: AWS::IAM::Role
+      DeletionPolicy: Delete
+      Properties:
+        Description: "Role for scheduled execution of Gassyoctopus Lambda"
+        RoleName: !Join ['-', ['gassyoctopus-eventbridgerole', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - scheduler.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: !Join ['-', ['gassyoctopus-eventbridgerole-policy', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: "lambda:InvokeFunction"
+                  Resource:
+                    Fn::GetAtt:
+                      - LambdaFunction
+                      - Arn
+
+    LambdaIAMRole:
+      Type: AWS::IAM::Role
+      DeletionPolicy: Delete
+      Properties:
+        Description: "Execution Role for lambda to retrieve secrets from Secrets Manager"
+        RoleName: !Join ['-', ['gassyoctopus-lambdarole', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: !Join ['-', ['gassyoctopus-lambdarole-policy', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: "secretsmanager:GetSecretValue"
+                  Resource:
+                    Fn::GetAtt:
+                      - SecretsManagerSecret
+                      - Id
