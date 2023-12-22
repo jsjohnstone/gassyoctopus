@@ -36,9 +36,9 @@ exports.handler = async function(event, context) {
     let tadoHomeID = null;
     let gassyOctopusSecrets = null;
 
-    if(process.env.GASSYOCTOPUS_SECRET_ARN) {
+    if(process.env.GASSYOCTOPUS_SECRET_NAME) {
         console.log("Getting secrets from AWS Secrets Manager")
-        gassyOctopusSecrets = await getSecretValue(process.env.GASSYOCTOPUS_SECRET_ARN)
+        gassyOctopusSecrets = await getSecretValue(process.env.GASSYOCTOPUS_SECRET_NAME)
     }
 
     geohomeUsername = process.env.GEOHOME_USERNAME || gassyOctopusSecrets.geohomeUsername || null
@@ -142,11 +142,10 @@ exports.handler = async function(event, context) {
     })
     //Send meter read to Tado
     try {
-        tado.addEnergyIQMeterReading(tadoHomeID, todayDate, geohomeGasTotalConsumption);
+        let tadoResult = await tado.addEnergyIQMeterReading(tadoHomeID, todayDate, geohomeGasTotalConsumption);
+        console.log("✅ Successfully sent meter reading of " + geohomeGasTotalConsumption + "m3 for " + todayDate + "to Tado")
     } catch(e){
         console.log("Error submitting meter reading")
         console.log(e)
     }
-
-    console.log("✅ Successfully sent meter reading of " + geohomeGasTotalConsumption + "m3 for " + todayDate + "to Tado")
 }
