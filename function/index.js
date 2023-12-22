@@ -102,7 +102,6 @@ exports.handler = async function(event, context) {
             console.log("Geohome Device ID: " + geohomeDeviceID)
         } catch(e){
             console.log("Error getting geohome Device ID")
-            console.log(e)
         }
     } else {
         console.log("Using Geohome Device ID: " + geohomeDeviceID)
@@ -124,7 +123,6 @@ exports.handler = async function(event, context) {
         console.log("Gas total consumption: " + geohomeGasTotalConsumption);
     } catch(e){
         console.log("Error getting geohome Device ID")
-        console.log(e)
     }
 
     // Create a tado client and login
@@ -133,19 +131,13 @@ exports.handler = async function(event, context) {
         await tado.login(tadoUsername, tadoPassword);
     } catch(e){
         console.log("Error logging in to Tado")
-        console.log(e)
     }
 
-    tado.getEnergyIQMeterReadings(tadoHomeID).then((readings) => {
-    }).catch((e) => {
-        console.log(e)
-    })
     //Send meter read to Tado
     try {
         let tadoResult = await tado.addEnergyIQMeterReading(tadoHomeID, todayDate, geohomeGasTotalConsumption);
         console.log("✅ Successfully sent meter reading of " + geohomeGasTotalConsumption + "m3 for " + todayDate + "to Tado")
     } catch(e){
         console.log("Error submitting meter reading")
-        console.log(e)
     }
 }
